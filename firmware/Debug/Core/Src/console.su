@@ -1,0 +1,11 @@
+../Core/Src/console.c:53:13:console_help_command	24	static
+../Core/Src/console.c:62:13:console_test_command	16	static
+../Core/Src/console.c:69:6:console_time_command	48	static
+../Core/Src/console.c:110:6:console_alarm_command	48	static
+../Core/Src/console.c:162:13:put_history	16	static
+../Core/Src/console.c:173:13:get_history	16	static
+../Core/Src/console.c:196:13:console_history_command	32	static
+../Core/Src/console.c:246:13:console_arg_is	32	static
+../Core/Src/console.c:252:20:console_get_parameter	32	static
+../Core/Src/console.c:308:13:process_command	32	static
+../Core/Src/console.c:323:6:console_process_key	16	static

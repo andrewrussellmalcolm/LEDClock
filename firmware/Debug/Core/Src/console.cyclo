@@ -1,0 +1,11 @@
+console.c:53:13:console_help_command	2
+console.c:62:13:console_test_command	1
+console.c:69:6:console_time_command	5
+console.c:110:6:console_alarm_command	7
+console.c:162:13:put_history	2
+console.c:173:13:get_history	4
+console.c:196:13:console_history_command	2
+console.c:246:13:console_arg_is	4
+console.c:252:20:console_get_parameter	11
+console.c:308:13:process_command	3
+console.c:323:6:console_process_key	13

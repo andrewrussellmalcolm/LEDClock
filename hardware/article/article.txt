@@ -1,0 +1,228 @@
+﻿@T: A retro-style bedside clock
+
+@D: Clocking On
+
+@A: Andrew Malcolm
+
+@V:
+When my venerable bedside clock radio/alarm, a present from my parents in the 1980s finally died, as a maker, my first thought was not, "where can I buy another", but "can I make one?"! I didn't really use the radio (I think it was AM only, and here in the UK, AM is no longer used much), so my ideas began to form around a simple, retro-style digital clock with an LED display in an attractive wooden case. The case needed to be simple to build as my woodworking skills are limited. I chose a large green LED display as I think the colour is quite restful at night, and I wanted the clock to run off a USB wall-wart to simplify the power supply design whilst retaining the possibility of running from a small external USB battery pack. I felt some user interface would be required to set the time, set and cancel an alarm and to control the display brightness. Five push-buttons are sufficient for this task. The alarm of course requires a buzzer or speaker.
+    
+I made a short list of the essential hardware elements:
+
+A microcontroller (32 bit ARM CPU, 48MHz internal clock, see below)
+32kHz watch crystal for the real timer clock
+8MHz crystal for microcontroller
+A backup battery for the real time clock
+Four seven segment displays, one inch high, for hours and minutes
+Two discrete LEDs for the colon between hours and minutes                    
+Piezoelectric buzzer for alarm
+Four push-buttons for time setting and brightness, one for alarm cancel
+Connectors for power, programming, debugging
+
+@ZT: Hardware design
+The core of the system is an STM32 microcontroller, specifically the STM32F072CBT6 [1]. It drives the display, interrogates the switches and drives the buzzer for the alarm. There is a huge variety of microcontrollers on the market, so the choice of an appropriate device can daunting. Previous experience tells me that ST Microelectronics devices perform well at a good price point and are very well supported in terms of development tools and online resources. Having designed a great many projects around these devices, I also know that software development will be accelerated by my familiarity with the STM32 family and their development tools. This project could just as easily been based on an Arduino, a PIC or a Pi Pico, but, as I say choice comes down to familiarity and suitable package configurations with the required I/O. The key feature required for a clock is clearly a battery-backed real-time clock built into the microcontroller, and using ST Microelectronics excellent device selection tools, I was able to select a suitable device with this feature as well as sufficient pins to drive the display, switches, buzzer, and a debug port. As we will see, onboard timers are key to this project and all STM32 devices come with several configurable timer units. The device needs an external crystal as a frequency source for the real time clock, but in all other regards is entirely self contained. The frequency accuracy and temperature coefficient of this crystal will determine the overall accuracy of the clock, so it is important to choose this device carefully.
+The project was designed to run from a standard USB wall-wart, and the 5V that this provides is used to power the displays directly, whilst a small linear regulator provides the 3.3V supply to the microcontroller. A standard 3V button cell provides the battery backup voltage. This prevents the user having to reset the time if the unit is unplugged or power is lost in some other manner.
+The display consists of four, one-inch high, green, seven segment LEDs [2] for hours and minutes, grouped into two groups of two, and two colour-matched discrete LEDs to form the flashing colon hours/minutes separator between them. The seven-segment displays are multiplexed together (see inset for explanation) and driven by a seven-channel open collector driver chip and discrete transistors. 
+Multiplexing is used to limit the number of pins and drivers required to interface them to the microcontroller. The seven channel open collector driver is connected to the cathodes of each display segment via current limiting resistors, and each separate display unit has its own transistor to connect the common anodes to the 5V power supply at the correct time. The colon LEDs are controlled by a single transistor, and they are separate from the multiplexing scheme. The decimal point in the rightmost seven segment display is illuminated when an alarm is active, so a driver is provided for that too. The buzzer is also driver via a transistor, with the microcontroller providing a 1KHz square wave pulsed at one second intervals to indicate an alarm.
+I chose four switches to mount to the left of the display and was able to find PCB mounted ones with a button stem tall enough to protrude through the front panel past the displays. The fifth button is a large circular push-button in the top of the unit, used to cancel the alarm.
+
+Schematic capture and PCB layout were both performed using KiCad, a free and open source CAD tool originally developed at CERN[3]. It really is an excellent suite of tools and handles the whole process of electronic design from schematic capture right through to generating files for manufacture. There is even a 3D viewer which generates a pan-able/rotatable image of your design, including the components. Although PCB layout is in 2D activity the ability to add 3D models of all the components and view the PCB assembly in a 3D viewer has saved me from mechanical clashes which are not apparent from the 2D design perspective. You can export the 3D model as a STEP file, and import that into 3D CAD tools such as FreeCAD [4], to build up more complex assemblies, aiding the design of parts such as enclosures, for example, suitable for 3D printing. There are many excellent PCB companies online who will build quality PCBs in a few days for less than five dollars/euros/pounds, so building prototype or experimental PCBs is not prohibitively expensive. Once the PCB design was complete in KiCad, a 3D model of the PCB assembly was exported into FreeCAD and an assembly created of the case and front panel to ensure all the assumptions about dimensions were correct. 
+        
+The full schematic for the final design is shown in the schematic.
+@Bi: schematic.png 
+
+The 3D model ensured mechanical dimensions all matched up, and provided drawings for the manufacture of the front panel and dimensions for the wooden case. The PCB assembly can be seen behind the transparent front panel and the alignment of push-buttons with the holes in the front panel can be seen.
+
+@Bi: 3D model.png 
+
+@ZT: Firmware
+The real time clock feature of the STM32 family of microcontrollers is central to the firmware design. Much like the real time clock found in every PC, it provides a convenient record of the current time in hours minutes and seconds (though the later is not used in this design) and runs even when the unit is powered down, as long as backup power is provided from a button cell. The time is set using two of the buttons on the front panel. When the upper button is pressed, the time increments by a minute. If the button is held down, the time starts to advance at one minute every half second. The lower button operates in a similar manner, but decrements the time. The alarm is set in the same way, whilst holding down the ‘alarm cancel’ button on the top of the unit.
+
+@ZT: Seven segment displays
+These displays are generally used only to display numeric characters, though a small subset of the alphabet is also possible. In this case only numbers are required, but some means is required to turn the numbers 0 to 9 into the correct pattern for the seven segments. This is easily achieved with a look up table:
+
+@LI:
+// digit (0 to 9) to seven-segment pattern
+// 1 in the binary constant means segment on
+// 0 means segment off
+static uint8_t  patterns[16] =
+{
+		//ABCDEFG (segment id)
+		0b1111110, // 0
+		0b0110000, // 1
+		0b1101101, // 2
+		0b1111001, // 3
+		0b0110011, // 4
+		0b1011011, // 5
+		0b1011111, // 6
+		0b1110000, // 7
+		0b1111111, // 8
+		0b1111011, // 9
+		0b0000000, // blank
+		0b0000000, // blank
+		0b0000000, // blank
+		0b0000000, // blank
+		0b0000000, // blank
+		0b0000000, // blank
+};
+
+/** write to selected digit */
+static void write_digit(int digit)
+{
+	// extract the required pattern by using 
+	//the number as an index into the lookup table
+	uint8_t pattern = patterns[digit & 0x0f];
+
+	HAL_GPIO_WritePin(SEG_G_GPIO_Port, SEG_G_Pin, (pattern >> 0 & 1));
+	HAL_GPIO_WritePin(SEG_F_GPIO_Port, SEG_F_Pin, (pattern >> 1 & 1));
+	HAL_GPIO_WritePin(SEG_E_GPIO_Port, SEG_E_Pin, (pattern >> 2 & 1));
+	HAL_GPIO_WritePin(SEG_D_GPIO_Port, SEG_D_Pin, (pattern >> 3 & 1));
+	HAL_GPIO_WritePin(SEG_C_GPIO_Port, SEG_C_Pin, (pattern >> 4 & 1));
+	HAL_GPIO_WritePin(SEG_B_GPIO_Port, SEG_B_Pin, (pattern >> 5 & 1));
+	HAL_GPIO_WritePin(SEG_A_GPIO_Port, SEG_A_Pin, (pattern >> 6 & 1));
+}
+
+@ZT:Timers
+The clock firmware relies heavily on timers internal to the microcontroller. These timers count cycles of the system clock (in this case 48MHz), and generate an interrupt when a specified target is reached. In most cases the timers are programmed to reload the same target, resulting in periodic interrupts.
+
+The first timer has a one second period. This is used to toggle the display 'colon' on or off (this gives the clock a ‘live’ feel, as the time only changes once a minute), and it reads the latest time (to the nearest second) from the real-time clock and saves it in a variable accessible by the display multiplexer. The display multiplexer (see inset for details) itself uses a timer, this time set into PWM (pulse width modulation) mode. This generates a periodic interrupt at the multiplexing rate (20ms), and is used to move to the next digit and update its data. A second interrupt is generated at the end of the PWM period (less than or equal to the 20ms multiplexing rate). This switches off the current digit. In this way, if the PWM period is less than the multiplexing period, each display will be off for more than a quarter of the total time causing the display to be dimmer. In this way, the PWM is used to control display brightness.
+
+The clock has five push-buttons used to set the time, set or cancel an alarm, and control the display brightness. Four of these are on the front panel adjacent to the display. These are connected to microcontroller I/O pins configured to generate interrupts when the push-button is pressed or released. Unfortunately, most push-buttons (and switches in general) do not change state cleanly but 'bounce' between open and closed for several milliseconds, before settling to the new state. This can cause all sorts of weird effects if not dealt with, and push-button debouncing is a common problem often fixed in firmware using 'debouncing' techniques. In this case, a timer is used for this function (see inset for details).
+
+The push-buttons used to control the clock have varying function depending on context: it is necessary to differentiate between a brief push and a sustained hold down (the latter is used to advance the time rapidly for time and alarm setting). Again, a timer is used for this, in this case in one-shot mode. The timer is set when a button push is detected, and if, when the timer's interrupt fires, the push button is still pressed, the 'sustained hold' function is initiated.
+
+Finally, a timer is used to generate a 1kHz square wave to drive the buzzer. The timer interrupts every half-cycle (500us) and the buzzed I/O pin state is toggled. The number of toggles is counted, and the toggling controlled in such a way as to produce bursts of 1kHz sound at regular intervals. Not quite enough to raise the dead, but a gentle reminder that it's time to get up! One of the five push-buttons is a large circular type on the top of the clock case and pressing that caused the alarm to be cancelled.
+
+@ZT: Software development
+I know the use of IDEs (integrated development environments) can be controversial and very much a matter of taste, and it’s certainly possible to do this type of microcontroller development without one. The ARM compilers and standard libraries can be downloaded from your distro’s repository and you’re off, using any editor that suits you and Make or Cmake, again, at your choice. Once you have a compiled binary, there are utilities for ST-Link to allow you to program your device, and you can use gbd to debug you program. If you don’t want to use the HAL (hardware abstraction layer) libraries provided by ST, you can generate your own header files with the addresses of the microcontroller registers and all the bit patterns required for configuration.
+Having said that, ST’s STM32CubeIDE [5], which is based on Eclipse, does streamline the process. It integrates ST’s CubeMX tool, a utility that allows you configure your microcontroller and generate a software framework that does all the initialization and leaves you with a blank ‘main()’ function to add your own code. You can label the pins of the microcontroller (bonus points if you use the same names as on the schematic!) The HAL libraries hide a lot of the complexity of setting up some of the peripherals, but are not perfect, so must be used with caution. There are lots of resources online showing how to use the IDE to set up the clocks, UARTs, timers USB ports and the like on an STM32 processor, including ST’s own getting started guide [6].
+
+@Bi: microcontroller configuration.png
+Here is the pin configuration for this design, and an example of a timer setup. Once saved, the IDE will then generate a set of #defines for the I/O pins that you can use in your code, and a complete set of initialization routines. At this point, you can continue to use the IDE, or ignore it and use Make with the generated Makefile. However, if you stay with the IDE and have your hardware connected via an ST-Link programmer, a single mouse click in the will compile, download and run your code. This level of pre-configuration (including, if you wish, the inclusion of an RTOS such as FreeRTOS), can leave you free to concentrate on your application code. In a commercial environment, time-to-market is everything, and time savings like this can be invaluable.
+
+@KT: Multiplexing multiple displays onto a single bus
+Driving four seven segment displays directly from the microcontroller would require at least 36 pins and 32 driver channels (if you include the decimal point). This would require a much larger microcontroller, four eight-channel driver chips and a considerable more complex PCB layout. The driver chips are required as the microcontroller cannot sink sufficient current to light the LEDs). The usual solution to this is multiplexing, that is to connect the cathodes all the matching segments in each display together and to a low-side driver, and the common anodes to high-level switches. Each display is turned on in turn by these high level switches whilst the correct seven-segment pattern is applied to the low-side driver. This means that each display is on for a maximum of one-quarter of the time, but by setting the LED current to the an appropriate level, it's quite possible to provide a display that is clearly visible in daylight. This requires 12 I/O pins, 4 high-side transistors and a single low-side driver chip. An excellent description of display multiplexing can be found here: [7].
+ 
+@KT:Redirecting stdin/out to UART for printf/scanf in STM32
+Debugging by adding printf() statements to code is a time-honoured and useful technique. In the STM32 environment, it is straightforward to redirect the output of printf() to a serial port,  which may then be connected to a terminal emulator, such as minicom, running on a laptop. 
+
+There is a low-level function called "_write()" defined in an STM32 library. The default implementation calls __io_putchar() in the 'c' standard library, and in the embedded version of the library, the data goes to the equivalent of /dev/null.
+The default _write() has 'weak' attributes, which means it can be overridden by an alternative implementation simply by providing a replacement function with the same signature without the 'weak' attribute.
+
+@LI:
+// the default implementation (in syscalls.c)
+__attribute__((weak)) int _write(int file, char *ptr, int len)
+{
+    ...
+}
+
+// the replacement to redirect output to a UART serial device.
+int _write(int file, char *ptr, int len)
+{
+    ...
+	HAL_UART_Transmit(&huart3, ptr, 1, -1);
+    ...
+}
+
+Once this is implemented, the full formatting power of printf() is available to output data to an external terminal. A similar technique can be applied to reading data from the terminal using getchar() or scanf()
+
+@LI:
+// read from serial port
+int _read(int file, char *data, int len)
+{
+	uint8_t ch;
+	HAL_UART_Receive(&huart3, &ch, 1, -1);
+	return 1;
+}
+
+@KT:Debouncing push-buttons with timers
+Push-buttons and switches rarely exhibit ideal behaviour: we would like them to go from open to closed in an instant. In reality, most exhibit what is known as switch bounce [7]. There are many ways to de-bounce switches, some of which require extra hardware (RC networks, set-reset latches etc.) but in a microcontroller environment timers are often seen as a simple solution where a delay of a few tens of milliseconds is acceptable. The operation goes like this: the microcontroller is set up to produce an interrupt once the button is pushed.  At this point the state of the switch is recorded, and a 20ms timer started. When the timer expires, the state is recorded again. If the two states are equal, a switch event is deemed to have occurred. It the switch ‘flapped’ between state in the intervening 20ms, those transitions must be ignored. It is thus  important not to resample the switch state while the 20ms timer is running, so the interrupt routine that does the initial sampling must either be disabled in that period or contain some logic that has a similar effect:
+
+@LI:
+
+static bool timer_running = false;
+static bool last_switch1_state = 1;
+
+// interrupt callback called when a switch is pushed 
+void interrupt_callback(void)
+{
+	if(!timer_running)
+	{
+		last_switch1_state = read_pin();
+	}
+
+	// start a timer to wait for 20ms
+	// then resample in timer ISR. only 
+	// act if the two samples match
+	timer_running = true;
+
+	register_timer_callback(timer_callback);
+	start_timer();
+}
+
+
+// debounce switch: if state is still same 
+// as initial after 20ms confirm action
+void timer_callback(void)
+{
+	stop_timer();
+	bool switch1_state = read_pin();
+
+	if(switch1_state == last_switch1_state)
+	{ 
+		// DO STUFF HERE
+	}
+}
+
+@ZT: Software summary
+Unlike many command-line programs running on Linux or any other OS, nothing much happens in the ‘main()’ of much embedded firmware, and in the present case, once the appropriate timers have been started and interrupt handlers registered, ‘main()’ simply enters an idle loop. Hardware initialisation has occurred before ‘main()’ is called, in code generated by the IDE, according to the configuration shown in the diagram shown previously, and in other settings in the IDE.  The timers handle the display refresh and multiplexing, and the interrupt service routines are called when the push-buttons are pressed to change the time, set the alarm, cancel the alarm or change the display brightness. That’s it!  
+
+@ZT: The completed unit
+I used FreeCAD to design an enclosure for the completed unit, using a STEP file of the PCB assembly, exported from KiCAD, to ensure a good fit and calculate the locations of fixing holes and the like. Although the case was made by hand from timber, as described below, the 3D model ensured I was able to cut the pieces required correctly, first time eliminating wasted time an materials. The 3D model was also very useful in simple visualising the finished item.
+  FreeCAD is another open source package, and every time I return to FreeCAD, I find the developers have made another step increase in functionality. It really is an exemplary open source project. 
+
+@ZT: Construction
+The front panel of the unit is a 3mm thick piece of green-tinted perspex and the PCB with all the displays and other components are mounted directly behind this. The PCB was manufactured with a black resist in order to avoid it being visible. The green tint does a good job of hiding the internals whilst letting through the green LED light.
+
+The case is very simple. I wanted a real wood case for retro feel. It's cut from a strip of oak 50mm wide 8mm thick (2 inches by 5/16th inch for my American friends). The four sides are cut at an angle of 45 degrees to form mitred joints and glued together. Small wooden blocks are glued internally to mount the PCB to, and the front panel is a simple friction fit into the aperture. The back panel is a similar piece of opaque white perspex fitted to the PCB via stand-offs. It has holes for mounting screws and a larger aperture to allow the micro-USB plug to pass through to the PCB mounted USB socket.
+The wooden case has a hole drilled in the top to receive the alarm cancel button. There are small wooden feet cut at an angle from an off-cut of the same wood, to set the clock at a slight upward tilt. Clear varnish protects the wood and completes the retro look. The dimensions were taken from the 3D model which again proved invaluable in eliminating any nasty surprises.
+
+@Bi: front-view.png 
+@Bi: rear-view.png 
+
+@ZT: Wrap up
+This clock was a fun project: once built, it is not dependant on any other equipment but is a useful object in its own right. I know these days, there's always a phone to tell the time, but once you look at your phone, you can be drawn into your day rather than turning over and going back to sleep! This clock is clearly visible from my beside cabinet without raising my head, and with the display dimmed it does not flood the room with light. I think the retro look is quite pleasing, but that's a matter of taste, of course. I've made a few of these to give as gifts, and it will be interesting to see how they are received. The completed design, both hardware and software, can be found at my github page[9].
+
+References
+[1]STM32F072CBT6:
+<U>https://www.st.com/resource/en/datasheet/DM00090510.pdf<U>
+
+[2]Seven segment LEDs
+<U>https://www.kingbrightusa.com/images/catalog/SPEC/SA10-21GWA.pdf<U>
+
+[3]KiCad:
+<U>https://home.cern/news/news/computing/kicad-software-gets-cern-treatment<U>
+
+[4]FreeCad
+<U>https://www.freecad.org/<U>
+
+[5]STM32CubeIDE: 
+<U>https://www.st.com/en/development-tools/stm32cubeide.html<U>
+
+[6]STM32CubeIDE getting started
+<U>https://wiki.st.com/stm32mpu/wiki/How_to_get_started_with_STM32CubeIDE_from_scratch<U>
+
+[7]Display multiplexing
+<U>https://en.wikipedia.org/wiki/Multiplexed_display<U>
+
+[8]Switch bounce
+<U>https://en.wikipedia.org/wiki/Switch#Contact_bounce<U>
+
+[9]Author's github project page 
+<U>https://github.com/andrewrussellmalcolm/LEDClock<U>
+
+@IT: About the author
+@Bi: author_pic.jpg
+Andrew Malcolm (MIET, CEng) is a retired hardware and firmware engineer. He maintains a keen interest in engineering in general and building embedded projects like this one in particular. He is a keen user of Linux and all the open source and free engineering tools available for it.
+He can be contacted on andrewrussellmalcolm@gmail.com
+

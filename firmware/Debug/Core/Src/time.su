@@ -1,0 +1,10 @@
+../Core/Src/time.c:19:6:set_time	48	static
+../Core/Src/time.c:28:6:get_time	48	static
+../Core/Src/time.c:39:6:increment_time	48	static
+../Core/Src/time.c:65:6:decrement_time	48	static
+../Core/Src/time.c:91:6:alarm_event_callback	16	static
+../Core/Src/time.c:98:6:set_alarm	64	static
+../Core/Src/time.c:117:6:get_alarm	64	static
+../Core/Src/time.c:127:6:enable_alarm	64	static
+../Core/Src/time.c:144:6:increment_alarm	56	static
+../Core/Src/time.c:169:6:decrement_alarm	56	static

@@ -1,0 +1,3 @@
+../Core/Src/switch.c:33:13:repeat_callback	32	static
+../Core/Src/switch.c:106:13:switch_callback	24	static
+../Core/Src/switch.c:209:6:HAL_GPIO_EXTI_Callback	16	static

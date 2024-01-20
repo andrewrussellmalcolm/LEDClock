@@ -1,0 +1,3 @@
+buzzer.c:15:13:buzzer_timer_callback	2
+buzzer.c:33:6:buzzer_start	1
+buzzer.c:48:6:buzzer_stop	1

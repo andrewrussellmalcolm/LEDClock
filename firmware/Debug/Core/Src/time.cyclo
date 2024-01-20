@@ -1,0 +1,10 @@
+time.c:19:6:set_time	1
+time.c:28:6:get_time	1
+time.c:39:6:increment_time	2
+time.c:65:6:decrement_time	2
+time.c:91:6:alarm_event_callback	1
+time.c:98:6:set_alarm	1
+time.c:117:6:get_alarm	1
+time.c:127:6:enable_alarm	2
+time.c:144:6:increment_alarm	2
+time.c:169:6:decrement_alarm	2
